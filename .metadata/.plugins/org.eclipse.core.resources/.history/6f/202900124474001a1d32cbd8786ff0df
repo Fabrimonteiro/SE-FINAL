@@ -1,0 +1,81 @@
+package pt.ulisboa.tecnico.learnjava.sibs.sibs;
+
+import static org.junit.Assert.assertEquals;
+
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
+import pt.ulisboa.tecnico.learnjava.bank.domain.Bank;
+import pt.ulisboa.tecnico.learnjava.bank.domain.Client;
+import pt.ulisboa.tecnico.learnjava.bank.domain.Person;
+import pt.ulisboa.tecnico.learnjava.bank.exceptions.AccountException;
+import pt.ulisboa.tecnico.learnjava.bank.exceptions.BankException;
+import pt.ulisboa.tecnico.learnjava.bank.exceptions.ClientException;
+import pt.ulisboa.tecnico.learnjava.bank.exceptions.ServicesException;
+import pt.ulisboa.tecnico.learnjava.bank.services.Services;
+import pt.ulisboa.tecnico.learnjava.sibs.domain.Operation;
+import pt.ulisboa.tecnico.learnjava.sibs.domain.Sibs;
+import pt.ulisboa.tecnico.learnjava.sibs.exceptions.OperationException;
+import pt.ulisboa.tecnico.learnjava.sibs.exceptions.SibsException;
+
+public class TransferMethodTest5 {
+	private static final String ADDRESS_1 = "Ave.";
+	private static final String PHONE_NUMBER_1 = "987654321";
+	private static final String NIF_1 = "123456789";
+	private static final String LAST_NAME_1 = "Silva";
+	private static final String FIRST_NAME_1 = "AntÃ³nio";
+	private static final int AGE_1 = 22;
+	
+	private static final String ADDRESS_2 = "Bairro.";
+	private static final String PHONE_NUMBER_2 = "912324541";
+	private static final String NIF_2 = "987654321";
+	private static final String LAST_NAME_2 = "Horta";
+	private static final String FIRST_NAME_2 = "Aníbal";
+	private static final int AGE_2 = 33;
+
+	private Sibs sibs;
+	private Bank sourceBank;
+	private Bank targetBank;
+	private Client sourceClient;
+	private Client targetClient;
+	private Services services;
+	private Person person1;
+	private Person person2;
+	private Client sourcePerson;
+	private Client targetPerson;
+
+	@Before
+	public void setUp() throws BankException, AccountException, ClientException {
+		this.services = new Services();
+		this.sibs = new Sibs(100, this.services);
+		this.sourceBank = new Bank("CGD");
+		this.targetBank = new Bank("BPI");
+		this.person1= new Person(FIRST_NAME_1,LAST_NAME_1 ,ADDRESS_1, AGE_1);
+		this.person2= new Person(FIRST_NAME_2,LAST_NAME_2 ,ADDRESS_2, AGE_2);
+		this.sourcePerson = new Client(this.sourceBank, NIF_1, PHONE_NUMBER_1, this.person1);
+		this.targetPerson = new Client(this.targetBank, NIF_2, PHONE_NUMBER_2, this.person2);
+	}
+
+	@Test
+	public void success() throws BankException, AccountException, SibsException, OperationException, ClientException, ServicesException {
+		String sourceIban = this.sourceBank.createAccount(Bank.AccountType.CHECKING, this.sourcePerson, 1000, 0);
+		String targetIban = this.targetBank.createAccount(Bank.AccountType.CHECKING, this.targetPerson, 1000, 0);
+		System.out.println(sourceIban);
+
+		this.sibs.transfer(sourceIban, targetIban, 100);
+
+		assertEquals(900, this.services.getAccountByIban(sourceIban).getBalance());
+		assertEquals(1100, this.services.getAccountByIban(targetIban).getBalance());
+		assertEquals(1, this.sibs.getNumberOfOperations());
+		assertEquals(100, this.sibs.getTotalValueOfOperations());
+		assertEquals(100, this.sibs.getTotalValueOfOperationsForType(Operation.OPERATION_TRANSFER));
+		assertEquals(0, this.sibs.getTotalValueOfOperationsForType(Operation.OPERATION_PAYMENT));
+	}
+
+	@After
+	public void tearDown() {
+		Bank.clearBanks();
+	}
+
+}

@@ -1,0 +1,389 @@
+package pt.ulisboa.tecnico.learnjava.sibs.sibs;
+
+import static org.junit.Assert.assertEquals;
+
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
+import pt.ulisboa.tecnico.learnjava.bank.domain.Bank;
+import pt.ulisboa.tecnico.learnjava.bank.domain.Client;
+import pt.ulisboa.tecnico.learnjava.bank.domain.Person;
+import pt.ulisboa.tecnico.learnjava.bank.exceptions.AccountException;
+import pt.ulisboa.tecnico.learnjava.bank.exceptions.BankException;
+import pt.ulisboa.tecnico.learnjava.bank.exceptions.ClientException;
+import pt.ulisboa.tecnico.learnjava.bank.exceptions.ServicesException;
+import pt.ulisboa.tecnico.learnjava.bank.services.Services;
+import pt.ulisboa.tecnico.learnjava.sibs.domain.SCanceled;
+import pt.ulisboa.tecnico.learnjava.sibs.domain.SCompleted;
+import pt.ulisboa.tecnico.learnjava.sibs.domain.SDeposited;
+import pt.ulisboa.tecnico.learnjava.sibs.domain.SError;
+import pt.ulisboa.tecnico.learnjava.sibs.domain.SRegistered;
+import pt.ulisboa.tecnico.learnjava.sibs.domain.SWithdrawn;
+import pt.ulisboa.tecnico.learnjava.sibs.domain.Sibs;
+import pt.ulisboa.tecnico.learnjava.sibs.exceptions.OperationException;
+import pt.ulisboa.tecnico.learnjava.sibs.exceptions.SibsException;
+
+public class TransferMethodTest_ProjectPart2_1_2_6_7 {
+	private static final String ADDRESS_1 = "Ave.";
+	private static final String PHONE_NUMBER_1 = "987654321";
+	private static final String NIF_1 = "123456789";
+	private static final String LAST_NAME_1 = "Silva";
+	private static final String FIRST_NAME_1 = "AntÃ³nio";
+	private static final int AGE_1 = 22;
+	
+	private static final String ADDRESS_2 = "Bairro.";
+	private static final String PHONE_NUMBER_2 = "912324541";
+	private static final String NIF_2 = "987654321";
+	private static final String LAST_NAME_2 = "Horta";
+	private static final String FIRST_NAME_2 = "Aníbal";
+	private static final int AGE_2 = 33;
+
+	private Sibs sibs;
+	private Bank sourceBank;
+	private Bank targetBank;
+	private Client sourcePerson;
+	private Client targetPerson;
+	private Client targetPersonSameBank;
+	private Services services;
+	private Person person1;
+	private Person person2;
+
+	@Before
+	public void setUp() throws BankException, AccountException, ClientException {
+		this.services = new Services();
+		this.sibs = new Sibs(100, this.services);
+		this.sourceBank = new Bank("CGD");
+		this.targetBank = new Bank("BPI");
+		this.person1= new Person(FIRST_NAME_1,LAST_NAME_1 ,ADDRESS_1, AGE_1);
+		this.person2= new Person(FIRST_NAME_2,LAST_NAME_2 ,ADDRESS_2, AGE_2);
+		this.sourcePerson = new Client(this.sourceBank, NIF_1, PHONE_NUMBER_1, this.person1);
+		this.targetPerson = new Client(this.targetBank, NIF_2, PHONE_NUMBER_2, this.person2);
+		this.targetPersonSameBank = new Client(this.sourceBank, NIF_1, PHONE_NUMBER_1, this.person1);
+	}
+
+	// Question 1 & 6 - Test Register State
+	@Test
+	public void Registered() throws BankException, AccountException, SibsException, OperationException, ClientException,
+			ServicesException {
+		String sourceIban = this.sourceBank.createAccount(Bank.AccountType.CHECKING, this.sourcePerson, 1000, 0);
+		String targetIban = this.targetBank.createAccount(Bank.AccountType.CHECKING, this.targetPerson, 1000, 0);
+		this.sibs.transfer(sourceIban, targetIban, 100);
+		assertEquals(SRegistered.class, this.sibs.getTransferOpertation(1).getCurrentState().getClass());
+
+		assertEquals(1000, this.services.getAccountByIban(sourceIban).getBalance());
+		assertEquals(1000, this.services.getAccountByIban(targetIban).getBalance());
+	}
+
+	// Question 1 & 6 - Test Withdrawn State
+	@Test
+	public void WithdrawnDifferentBanks() throws BankException, AccountException, SibsException, OperationException,
+			ClientException, ServicesException {
+		String sourceIban = this.sourceBank.createAccount(Bank.AccountType.CHECKING, this.sourcePerson, 1000, 0);
+		String targetIban = this.targetBank.createAccount(Bank.AccountType.CHECKING, this.targetPerson, 1000, 0);
+		this.sibs.transfer(sourceIban, targetIban, 100);
+		this.sibs.processOperations();
+
+		assertEquals(SWithdrawn.class, this.sibs.getTransferOpertation(1).getCurrentState().getClass());
+		assertEquals(900, this.services.getAccountByIban(sourceIban).getBalance());
+		assertEquals(1000, this.services.getAccountByIban(targetIban).getBalance());
+	}
+
+	// Question 1 & 6 - Test Withdrawn State
+	@Test
+	public void CompletedSameBanks() throws BankException, AccountException, SibsException, OperationException,
+			ClientException, ServicesException {
+		String sourceIban = this.sourceBank.createAccount(Bank.AccountType.CHECKING, this.sourcePerson, 1000, 0);
+		String targetIban = this.sourceBank.createAccount(Bank.AccountType.CHECKING, this.targetPersonSameBank, 1000,
+				0);
+		this.sibs.transfer(sourceIban, targetIban, 100);
+		this.sibs.processOperations();
+		this.sibs.processOperations();
+
+		assertEquals(SCompleted.class, this.sibs.getTransferOpertation(1).getCurrentState().getClass());
+		assertEquals(900, this.services.getAccountByIban(sourceIban).getBalance());
+		assertEquals(1100, this.services.getAccountByIban(targetIban).getBalance());
+	}
+
+	// Question 1 & 6 - Test Deposited State
+	@Test
+	public void Deposited() throws BankException, AccountException, SibsException, OperationException, ClientException,
+			ServicesException {
+		String sourceIban = this.sourceBank.createAccount(Bank.AccountType.CHECKING, this.sourcePerson, 1000, 0);
+		String targetIban = this.targetBank.createAccount(Bank.AccountType.CHECKING, this.targetPerson, 1000, 0);
+		this.sibs.transfer(sourceIban, targetIban, 100);
+		this.sibs.processOperations();
+		this.sibs.processOperations();
+
+		assertEquals(SDeposited.class, this.sibs.getTransferOpertation(1).getCurrentState().getClass());
+		assertEquals(900, this.services.getAccountByIban(sourceIban).getBalance());
+		assertEquals(1100, this.services.getAccountByIban(targetIban).getBalance());
+	}
+
+	// Question 1 & 6 - Test Completed State
+	@Test
+	public void Completed() throws BankException, AccountException, SibsException, OperationException, ClientException,
+			ServicesException {
+		String sourceIban = this.sourceBank.createAccount(Bank.AccountType.CHECKING, this.sourcePerson, 1000, 0);
+		String targetIban = this.targetBank.createAccount(Bank.AccountType.CHECKING, this.targetPerson, 1000, 0);
+		this.sibs.transfer(sourceIban, targetIban, 100);
+		this.sibs.processOperations();
+		this.sibs.processOperations();
+		this.sibs.processOperations();
+
+		assertEquals(SCompleted.class, this.sibs.getTransferOpertation(1).getCurrentState().getClass());
+		assertEquals(894, this.services.getAccountByIban(sourceIban).getBalance());
+		assertEquals(1100, this.services.getAccountByIban(targetIban).getBalance());
+	}
+
+	// Question 1 & 6 - Test Completed Final State
+	@Test
+	public void CompletedFinalState() throws BankException, AccountException, SibsException, OperationException,
+			ClientException, ServicesException {
+		String sourceIban = this.sourceBank.createAccount(Bank.AccountType.CHECKING, this.sourcePerson, 1000, 0);
+		String targetIban = this.targetBank.createAccount(Bank.AccountType.CHECKING, this.targetPerson, 1000, 0);
+		this.sibs.transfer(sourceIban, targetIban, 100);
+		this.sibs.processOperations();
+		this.sibs.processOperations();
+		this.sibs.processOperations();
+
+		assertEquals(SCompleted.class, this.sibs.getTransferOpertation(1).getCurrentState().getClass());
+
+		this.sibs.processOperations();
+
+		assertEquals(SCompleted.class, this.sibs.getTransferOpertation(1).getCurrentState().getClass());
+
+		this.sibs.cancelOperation(1);
+
+		assertEquals(SCompleted.class, this.sibs.getTransferOpertation(1).getCurrentState().getClass());
+
+		assertEquals(894, this.services.getAccountByIban(sourceIban).getBalance());
+		assertEquals(1100, this.services.getAccountByIban(targetIban).getBalance());
+	}
+
+	// Question 3 & 6- Test Canceled State
+	@Test
+	public void registeredToCanceled() throws BankException, AccountException, SibsException, OperationException,
+			ClientException, ServicesException {
+		String sourceIban = this.sourceBank.createAccount(Bank.AccountType.CHECKING, this.sourcePerson, 1000, 0);
+		String targetIban = this.targetBank.createAccount(Bank.AccountType.CHECKING, this.targetPerson, 1000, 0);
+		this.sibs.transfer(sourceIban, targetIban, 100);
+
+		assertEquals(SRegistered.class, this.sibs.getTransferOpertation(1).getCurrentState().getClass());
+
+		this.sibs.cancelOperation(1);
+
+		assertEquals(SCanceled.class, this.sibs.getTransferOpertation(1).getCurrentState().getClass());
+		assertEquals(1000, this.services.getAccountByIban(sourceIban).getBalance());
+		assertEquals(1000, this.services.getAccountByIban(targetIban).getBalance());
+	}
+
+	// Question 3 & 6- Test Canceled State
+	@Test
+	public void withdrawnToCanceled() throws BankException, AccountException, SibsException, OperationException,
+			ClientException, ServicesException {
+		String sourceIban = this.sourceBank.createAccount(Bank.AccountType.CHECKING, this.sourcePerson, 1000, 0);
+		String targetIban = this.targetBank.createAccount(Bank.AccountType.CHECKING, this.targetPerson, 1000, 0);
+		this.sibs.transfer(sourceIban, targetIban, 100);
+		this.sibs.processOperations();
+
+		assertEquals(SWithdrawn.class, this.sibs.getTransferOpertation(1).getCurrentState().getClass());
+
+		this.sibs.cancelOperation(1);
+
+		assertEquals(SCanceled.class, this.sibs.getTransferOpertation(1).getCurrentState().getClass());
+		assertEquals(1000, this.services.getAccountByIban(sourceIban).getBalance());
+		assertEquals(1000, this.services.getAccountByIban(targetIban).getBalance());
+	}
+
+	// Question 3 & 6- Test Canceled State
+	@Test
+	public void depositToCanceled() throws BankException, AccountException, SibsException, OperationException,
+			ClientException, ServicesException {
+		String sourceIban = this.sourceBank.createAccount(Bank.AccountType.CHECKING, this.sourcePerson, 1000, 0);
+		String targetIban = this.targetBank.createAccount(Bank.AccountType.CHECKING, this.targetPerson, 1000, 0);
+		this.sibs.transfer(sourceIban, targetIban, 100);
+		this.sibs.processOperations();
+		this.sibs.processOperations();
+
+		assertEquals(SDeposited.class, this.sibs.getTransferOpertation(1).getCurrentState().getClass());
+
+		this.sibs.cancelOperation(1);
+
+		assertEquals(SCanceled.class, this.sibs.getTransferOpertation(1).getCurrentState().getClass());
+		assertEquals(1000, this.services.getAccountByIban(sourceIban).getBalance());
+		assertEquals(1000, this.services.getAccountByIban(targetIban).getBalance());
+	}
+
+	@Test
+
+	public void CanceledFinalState() throws BankException, AccountException, SibsException, OperationException,
+			ClientException, ServicesException {
+		String sourceIban = this.sourceBank.createAccount(Bank.AccountType.CHECKING, this.sourcePerson, 1000, 0);
+		String targetIban = this.targetBank.createAccount(Bank.AccountType.CHECKING, this.targetPerson, 1000, 0);
+		this.sibs.transfer(sourceIban, targetIban, 100);
+		this.sibs.processOperations();
+		this.sibs.processOperations();
+
+		this.sibs.cancelOperation(1);
+
+		assertEquals(SCanceled.class, this.sibs.getTransferOpertation(1).getCurrentState().getClass());
+
+		this.sibs.processOperations();
+
+		assertEquals(SCanceled.class, this.sibs.getTransferOpertation(1).getCurrentState().getClass());
+
+		this.sibs.cancelOperation(1);
+
+		assertEquals(SCanceled.class, this.sibs.getTransferOpertation(1).getCurrentState().getClass());
+
+		assertEquals(1000, this.services.getAccountByIban(sourceIban).getBalance());
+		assertEquals(1000, this.services.getAccountByIban(targetIban).getBalance());
+	}
+
+	@Test
+	public void registeredToError() throws BankException, AccountException, SibsException, OperationException,
+			ClientException, ServicesException {
+
+		String sourceIban = this.sourceBank.createAccount(Bank.AccountType.CHECKING, this.sourcePerson, 100, 0);
+		String targetIban = this.targetBank.createAccount(Bank.AccountType.CHECKING, this.targetPerson, 1000, 0);
+
+		this.sibs.transfer(sourceIban, targetIban, 100);
+
+		this.sibs.setServiceToNull(1);
+
+		this.sibs.processOperations();
+		this.sibs.processOperations();
+		this.sibs.processOperations();
+
+		assertEquals(SError.class, this.sibs.getTransferOpertation(1).getCurrentState().getClass());
+	}
+
+	@Test
+	public void withdrawToError() throws BankException, AccountException, SibsException, OperationException,
+			ClientException, ServicesException {
+		String sourceIban = this.sourceBank.createAccount(Bank.AccountType.CHECKING, this.sourcePerson, 100, 0);
+		String targetIban = this.targetBank.createAccount(Bank.AccountType.CHECKING, this.targetPerson, 1000, 0);
+
+		this.sibs.transfer(sourceIban, targetIban, 100);
+		this.sibs.processOperations();
+
+		this.sibs.setServiceToNull(1);
+
+		this.sibs.processOperations();
+		this.sibs.processOperations();
+		this.sibs.processOperations();
+
+		assertEquals(SError.class, this.sibs.getTransferOpertation(1).getCurrentState().getClass());
+	}
+
+	@Test
+	public void withdrawnSameBanksToError() throws BankException, AccountException, SibsException, OperationException,
+			ClientException, ServicesException {
+		String sourceIban = this.sourceBank.createAccount(Bank.AccountType.CHECKING, this.sourcePerson, 1000, 0);
+		String targetIban = this.sourceBank.createAccount(Bank.AccountType.CHECKING, this.targetPersonSameBank, 1000,
+				0);
+		this.sibs.transfer(sourceIban, targetIban, 100);
+		this.sibs.processOperations();
+		this.sibs.setServiceToNull(1);
+
+		this.sibs.processOperations();
+		this.sibs.processOperations();
+		this.sibs.processOperations();
+
+		assertEquals(SError.class, this.sibs.getTransferOpertation(1).getCurrentState().getClass());
+		assertEquals(900, this.services.getAccountByIban(sourceIban).getBalance());
+		assertEquals(1000, this.services.getAccountByIban(targetIban).getBalance());
+	}
+
+	@Test
+	public void depositedToError() throws BankException, AccountException, SibsException, OperationException,
+			ClientException, ServicesException {
+		String sourceIban = this.sourceBank.createAccount(Bank.AccountType.CHECKING, this.sourcePerson, 100, 0);
+		String targetIban = this.targetBank.createAccount(Bank.AccountType.CHECKING, this.targetPerson, 1000, 0);
+
+		this.sibs.transfer(sourceIban, targetIban, 100);
+		this.sibs.processOperations();
+		this.sibs.processOperations();
+
+		this.sibs.setServiceToNull(1);
+
+		this.sibs.processOperations();
+		this.sibs.processOperations();
+		this.sibs.processOperations();
+
+		assertEquals(SError.class, this.sibs.getTransferOpertation(1).getCurrentState().getClass());
+	}
+
+	@Test
+	public void withdrawnToCanceledToError() throws BankException, AccountException, SibsException, OperationException,
+			ClientException, ServicesException {
+		String sourceIban = this.sourceBank.createAccount(Bank.AccountType.CHECKING, this.sourcePerson, 1000, 0);
+		String targetIban = this.targetBank.createAccount(Bank.AccountType.CHECKING, this.targetPerson, 1000, 0);
+		this.sibs.transfer(sourceIban, targetIban, 100);
+		this.sibs.processOperations();
+
+		assertEquals(SWithdrawn.class, this.sibs.getTransferOpertation(1).getCurrentState().getClass());
+
+		this.sibs.setServiceToNull(1);
+
+		this.sibs.cancelOperation(1);
+		this.sibs.cancelOperation(1);
+		this.sibs.cancelOperation(1);
+
+		assertEquals(SError.class, this.sibs.getTransferOpertation(1).getCurrentState().getClass());
+	}
+
+	@Test
+	public void depositToCanceledToError() throws BankException, AccountException, SibsException, OperationException,
+			ClientException, ServicesException {
+		String sourceIban = this.sourceBank.createAccount(Bank.AccountType.CHECKING, this.sourcePerson, 1000, 0);
+		String targetIban = this.targetBank.createAccount(Bank.AccountType.CHECKING, this.targetPerson, 1000, 0);
+		this.sibs.transfer(sourceIban, targetIban, 100);
+		this.sibs.processOperations();
+		this.sibs.processOperations();
+
+		assertEquals(SDeposited.class, this.sibs.getTransferOpertation(1).getCurrentState().getClass());
+
+		this.sibs.setServiceToNull(1);
+
+		this.sibs.cancelOperation(1);
+		this.sibs.cancelOperation(1);
+		this.sibs.cancelOperation(1);
+
+		assertEquals(SError.class, this.sibs.getTransferOpertation(1).getCurrentState().getClass());
+	}
+
+	@Test
+	public void ErrorFinalState() throws BankException, AccountException, SibsException, OperationException,
+			ClientException, ServicesException {
+
+		String sourceIban = this.sourceBank.createAccount(Bank.AccountType.CHECKING, this.sourcePerson, 100, 0);
+		String targetIban = this.targetBank.createAccount(Bank.AccountType.CHECKING, this.targetPerson, 1000, 0);
+
+		this.sibs.transfer(sourceIban, targetIban, 100);
+
+		this.sibs.setServiceToNull(1);
+
+		this.sibs.processOperations();
+		this.sibs.processOperations();
+		this.sibs.processOperations();
+
+		assertEquals(SError.class, this.sibs.getTransferOpertation(1).getCurrentState().getClass());
+
+		this.sibs.processOperations();
+
+		assertEquals(SError.class, this.sibs.getTransferOpertation(1).getCurrentState().getClass());
+
+		this.sibs.cancelOperation(1);
+
+		assertEquals(SError.class, this.sibs.getTransferOpertation(1).getCurrentState().getClass());
+
+	}
+
+	@After
+	public void tearDown() {
+		Bank.clearBanks();
+	}
+
+}
